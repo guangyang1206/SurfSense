@@ -205,12 +205,41 @@ async def index_github_repos(
             try:
                 logger.info(f"Phase 1: Analyzing repository: {repo_full_name}")
 
-                # Run gitingest via subprocess (isolated from event loop)
+                # Run gitingest via subprocess (isolated from event loop).
+                # gitingest can take several minutes for large repos, which exceeds
+                # the 120-second heartbeat TTL and causes the stale-task reaper to
+                # mark the notification as failed (see issue #1295).
+                # A background heartbeat loop keeps the Redis key alive for the
+                # entire duration of Phase 1 per-repo ingestion.
                 import asyncio
 
-                digest = await asyncio.to_thread(
-                    github_client.ingest_repository, repo_full_name
-                )
+                async def _heartbeat_loop(
+                    callback: HeartbeatCallbackType,
+                    indexed_count: int,
+                    interval: int = 60,
+                ) -> None:
+                    """Refresh heartbeat every *interval* seconds while Phase 1 blocks."""
+                    try:
+                        while True:
+                            await asyncio.sleep(interval)
+                            await callback(indexed_count)
+                    except asyncio.CancelledError:
+                        pass
+
+                heartbeat_task = None
+                if on_heartbeat_callback:
+                    heartbeat_task = asyncio.create_task(
+                        _heartbeat_loop(on_heartbeat_callback, documents_indexed)
+                    )
+
+                try:
+                    digest = await asyncio.to_thread(
+                        github_client.ingest_repository, repo_full_name
+                    )
+                finally:
+                    if heartbeat_task is not None:
+                        heartbeat_task.cancel()
+                        await asyncio.gather(heartbeat_task, return_exceptions=True)
 
                 if not digest:
                     logger.warning(
