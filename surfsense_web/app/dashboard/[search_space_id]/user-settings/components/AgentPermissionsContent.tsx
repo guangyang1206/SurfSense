@@ -110,6 +110,7 @@ export function AgentPermissionsContent() {
 	});
 
 	const createMutation = useMutation({
+		meta: { suppressGlobalErrorToast: true },
 		mutationFn: (payload: AgentPermissionRuleCreate) =>
 			agentPermissionsApiService.create(searchSpaceId as number, payload),
 		onSuccess: () => {

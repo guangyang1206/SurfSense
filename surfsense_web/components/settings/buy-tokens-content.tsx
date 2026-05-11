@@ -46,6 +46,7 @@ export function BuyTokensContent() {
 	const [me] = useZeroQuery(queries.user.me({}));
 
 	const purchaseMutation = useMutation({
+		meta: { suppressGlobalErrorToast: true },
 		mutationFn: stripeApiService.createTokenCheckoutSession,
 		onSuccess: (response) => {
 			window.location.assign(response.checkout_url);

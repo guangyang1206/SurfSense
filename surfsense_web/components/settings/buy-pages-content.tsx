@@ -25,6 +25,7 @@ export function BuyPagesContent() {
 
 	const purchaseMutation = useMutation({
 		mutationFn: stripeApiService.createCheckoutSession,
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: (response) => {
 			window.location.assign(response.checkout_url);
 		},
