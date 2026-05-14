@@ -701,6 +701,29 @@ export function DocumentUploadTab({
 							</div>
 							<Progress value={uploadProgress} className="h-1.5" />
 						</div>
+						<div className="flex justify-end">
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-6 text-xs text-muted-foreground hover:text-destructive"
+								onClick={() => {
+									// Cancel upload: stop progress, clear files, reset state
+									if (progressIntervalRef.current) {
+										clearInterval(progressIntervalRef.current);
+										progressIntervalRef.current = null;
+									}
+									setUploadProgress(0);
+									setFiles([]);
+									setFolderUpload(null);
+									toast(t("upload_cancelled"), {
+										description: t("upload_cancelled_desc"),
+									});
+									onSuccess?.();
+								}}
+							>
+								{t("cancel")}
+							</Button>
+						</div>
 					)}
 
 					<div className={toggleRowClass}>
