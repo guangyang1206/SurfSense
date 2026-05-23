@@ -758,6 +758,29 @@ class Config:
 
     # Chonkie Configuration | Edit this to your needs
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
+    
+    # Normalize embedding model string for Chonkie compatibility
+    # Chonkie expects: sentence-transformers/model-name (hyphen, not underscore)
+    # Also validate that the model string is not empty or malformed
+    if EMBEDDING_MODEL:
+        # Fix common typo: sentence_transformers -> sentence-transformers
+        if "sentence_transformers" in EMBEDDING_MODEL:
+            EMBEDDING_MODEL = EMBEDDING_MODEL.replace("sentence_transformers", "sentence-transformers")
+            print(f"Warning: Normalized EMBEDDING_MODEL to {EMBEDDING_MODEL} (use hyphen, not underscore)")
+        
+        # Ensure local model format is correct for Chonkie
+        # Local models should be: sentence-transformers/all-MiniLM-L6-v2
+        # API models should be: openai://text-embedding-ada-002 or cohere://...
+        if not ("://" in EMBEDDING_MODEL or EMBEDDING_MODEL.startswith("sentence-transformers/")):
+            # Try to infer: if it looks like a local model name without prefix
+            if "/" not in EMBEDDING_MODEL and " " not in EMBEDDING_MODEL:
+                EMBEDDING_MODEL = f"sentence-transformers/{EMBEDDING_MODEL}"
+                print(f"Warning: Added sentence-transformers/ prefix to EMBEDDING_MODEL: {EMBEDDING_MODEL}")
+    else:
+        # Default to a local model if not specified
+        EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+        print(f"Warning: EMBEDDING_MODEL not set, defaulting to {EMBEDDING_MODEL}")
+    
     # Azure OpenAI credentials from environment variables
     AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
     AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
@@ -769,10 +792,23 @@ class Config:
     if AZURE_OPENAI_API_KEY:
         embedding_kwargs["azure_api_key"] = AZURE_OPENAI_API_KEY
 
-    embedding_model_instance = AutoEmbeddings.get_embeddings(
-        EMBEDDING_MODEL,
-        **embedding_kwargs,
-    )
+    try:
+        embedding_model_instance = AutoEmbeddings.get_embeddings(
+            EMBEDDING_MODEL,
+            **embedding_kwargs,
+        )
+    except RuntimeError as e:
+        if "Provider not found" in str(e):
+            print(
+                f"Error: Failed to load embedding model '{EMBEDDING_MODEL}'. "
+                f"Please check EMBEDDING_MODEL format in .env file. "
+                f"For local models, use: sentence-transformers/model-name "
+                f"(with hyphen, not underscore). "
+                f"For API models, use: provider://model-name (e.g., openai://text-embedding-ada-002)"
+            )
+            raise
+        raise
+    
     is_local_embedding_model = "://" not in (EMBEDDING_MODEL or "")
     chunker_instance = RecursiveChunker(
         chunk_size=getattr(embedding_model_instance, "max_seq_length", 512)
