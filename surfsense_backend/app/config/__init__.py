@@ -769,11 +769,26 @@ class Config:
     if AZURE_OPENAI_API_KEY:
         embedding_kwargs["azure_api_key"] = AZURE_OPENAI_API_KEY
 
+    # Ensure EMBEDDING_MODEL has proper prefix for Chonkie AutoEmbeddings detection.
+    # Without a provider prefix (e.g. "sentence-transformers/"), Chonkie
+    # may mis-detect the model as an API-based model and return the wrong
+    # embedding class, causing "RuntimeError: Provider not found: openai".
+    _embedding_model_raw = EMBEDDING_MODEL or ""
+    _embedding_provider = os.getenv("EMBEDDING_MODEL_PROVIDER", "").strip().lower()
+    if (
+        _embedding_provider == "sentence-transformers"
+        and "/" not in _embedding_model_raw
+    ):
+        # Prepend provider prefix so Chonkie detects local SentenceTransformers
+        _embedding_model_for_chonkie = f"sentence-transformers/{_embedding_model_raw}"
+    else:
+        _embedding_model_for_chonkie = _embedding_model_raw
+
     embedding_model_instance = AutoEmbeddings.get_embeddings(
-        EMBEDDING_MODEL,
+        _embedding_model_for_chonkie,
         **embedding_kwargs,
     )
-    is_local_embedding_model = "://" not in (EMBEDDING_MODEL or "")
+    is_local_embedding_model = "://" not in (_embedding_model_for_chonkie or "")
     chunker_instance = RecursiveChunker(
         chunk_size=getattr(embedding_model_instance, "max_seq_length", 512)
     )

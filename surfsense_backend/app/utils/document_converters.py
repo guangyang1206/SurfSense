@@ -62,7 +62,21 @@ def embed_text(text: str) -> np.ndarray:
     ``config.embedding_model_instance.embed(text)`` that never exceeds the
     model's context window."""
     with _embedding_lock:
-        return config.embedding_model_instance.embed(truncate_for_embedding(text))
+        truncated = truncate_for_embedding(text)
+        try:
+            return config.embedding_model_instance.embed(truncated)
+        except RuntimeError as e:
+            # Defense in depth: if Chonkie mis-detected the embedding
+            # model type (e.g. local model treated as API-based), fall back
+            # to sentence-transformers directly.
+            if "Provider not found" in str(e) and config.is_local_embedding_model:
+                import sentence_transformers as st
+                _model_name = config.EMBEDDING_MODEL or "all-MiniLM-L6-v2"
+                if "/" not in _model_name:
+                    _model_name = f"sentence-transformers/{_model_name}"
+                _local_model = st.SentenceTransformer(_model_name)
+                return _local_model.encode([truncated])[0]
+            raise
 
 
 def embed_texts(texts: list[str]) -> list[np.ndarray]:
@@ -79,8 +93,23 @@ def embed_texts(texts: list[str]) -> list[np.ndarray]:
     with _embedding_lock:
         truncated = [truncate_for_embedding(t) for t in texts]
         if config.is_local_embedding_model:
+            try:
+                return [config.embedding_model_instance.embed(t) for t in truncated]
+            except RuntimeError as e:
+                if "Provider not found" in str(e):
+                    # Fallback for mis-detected local embedding model
+                    import sentence_transformers as st
+                    _model_name = config.EMBEDDING_MODEL or "all-MiniLM-L6-v2"
+                    if "/" not in _model_name:
+                        _model_name = f"sentence-transformers/{_model_name}"
+                    _local_model = st.SentenceTransformer(_model_name)
+                    return _local_model.encode(truncated).tolist()
+                raise
+        try:
+            return config.embedding_model_instance.embed_batch(truncated)
+        except Exception:
+            # Fallback to sequential embed calls
             return [config.embedding_model_instance.embed(t) for t in truncated]
-        return config.embedding_model_instance.embed_batch(truncated)
 
 
 def get_model_context_window(model_name: str) -> int:
