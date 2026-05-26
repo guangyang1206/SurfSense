@@ -757,7 +757,21 @@ class Config:
     OPENROUTER_INTEGRATION_SETTINGS = load_openrouter_integration_settings()
 
     # Chonkie Configuration | Edit this to your needs
+    # Support both EMBEDDING_MODEL and separate provider/model env vars
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
+    EMBEDDING_MODEL_PROVIDER = os.getenv("EMBEDDING_MODEL_PROVIDER")
+    CHONKIE_EMBEDDING_MODEL = os.getenv("CHONKIE_EMBEDDING_MODEL")
+    
+    # Build full model string if provider + model are specified separately
+    if not EMBEDDING_MODEL and EMBEDDING_MODEL_PROVIDER and CHONKIE_EMBEDDING_MODEL:
+        EMBEDDING_MODEL = f"{EMBEDDING_MODEL_PROVIDER}/{CHONKIE_EMBEDDING_MODEL}"
+        logger.info(f"Built EMBEDDING_MODEL from provider + model: {EMBEDDING_MODEL}")
+    
+    # If still not set, use default
+    if not EMBEDDING_MODEL:
+        EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+        logger.info(f"Using default EMBEDDING_MODEL: {EMBEDDING_MODEL}")
+    
     # Azure OpenAI credentials from environment variables
     AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
     AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
