@@ -44,7 +44,50 @@ Want to fix it? Go for it! Just link the issue in your PR.
 We follow a **branch protection model** to keep `main` stable:
 
 | Branch | Purpose | Who can merge |
-|--------|---------|---------------|
+|---------|----------|-----------------|
+
+---
+
+## 🧪 Testing
+
+Before submitting a PR, please run the test suite:
+
+```bash
+# Install dependencies
+npm install
+
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm test -- --watch
+```
+
+> **Note:** When you submit a PR, our CI will automatically run tests and linting.
+> Make sure everything passes locally first! 🙏
+
+---
+
+## 💬 Getting Help
+
+Stuck? Reach out!
+
+- **Discord:** [Join our server](https://discord.gg/ejrnVfTDp9) — fastest response
+- **Issues:** Open a [new issue](https://github.com/MODSetter/SurfSense/issues/new) for bugs or feature requests
+- **Discussions:** Use [GitHub Discussions](https://github.com/MODSetter/SurfSense/discussions) for questions
+
+---
+
+## 🎉 Thanks
+
+Every contribution — from fixing a typo to implementing a major feature — is genuinely appreciated. 💙
+
+Happy contributing! 🚀
+
+---
+
+*This guide was inspired by the amazing [CSSpec](https://github.com/CSSpec/CSSpec/blob/master/CONTRIBUTING.md) and [Atom](https://github.com/atom/atom/blob/master/CONTRIBUTING.md) contributing guides.*
+
 | `main` | Stable/release branch | Maintainers only (from `dev`) |
 | `dev` | Active development & integration | Via approved PRs from contributors |
 | `feature/*`, `fix/*`, etc. | Individual work branches | Contributors create PRs to `dev` |
