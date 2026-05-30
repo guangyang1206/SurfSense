@@ -59,16 +59,26 @@ async def create_podcast_transcript(
     content = strip_markdown_fences(extract_text_content(llm_response.content))
 
     try:
+        # First attempt: direct JSON parsing
         podcast_transcript = PodcastTranscripts.model_validate(json.loads(content))
     except (json.JSONDecodeError, TypeError, ValueError) as e:
         print(f"Direct JSON parsing failed, trying fallback approach: {e!s}")
 
         try:
+            # Fallback 1: Extract JSON substring
             json_start = content.find("{")
             json_end = content.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 json_str = content[json_start:json_end]
-                parsed_data = json.loads(json_str)
+                # Improved: Handle escape characters in multilingual content
+                # Replace problematic backslashes that aren't proper escapes
+                json_str_cleaned = json_str.replace("\\\\\Letter", "\\Letter").replace("\\\\Chinese", "\\Chinese")
+                # Try parsing with cleaned string first
+                try:
+                    parsed_data = json.loads(json_str_cleaned)
+                except json.JSONDecodeError:
+                    # If that fails, try with strict=False and original string
+                    parsed_data = json.loads(json_str, strict=False)
                 podcast_transcript = PodcastTranscripts.model_validate(parsed_data)
                 print("Successfully parsed podcast transcript using fallback approach")
             else:
@@ -141,12 +151,14 @@ async def create_merged_podcast_audio(
 
         try:
             if app_config.TTS_SERVICE == "local/kokoro":
-                # Use Kokoro TTS service
+                # Use Kokoro TTS service with configurable language code
                 kokoro_service = await get_kokoro_tts_service(
-                    lang_code="a"
-                )  # American English
+                    lang_code=app_config.KOKORO_LANG_CODE
+                )
+                # Use configurable voice or fall back to get_voice_for_provider
+                voice_to_use = app_config.KOKORO_DEFAULT_VOICE if app_config.KOKORO_DEFAULT_VOICE else voice
                 audio_path = await kokoro_service.generate_speech(
-                    text=dialog, voice=voice, speed=1.0, output_path=filename
+                    text=dialog, voice=voice_to_use, speed=1.0, output_path=filename
                 )
                 return audio_path
             else:

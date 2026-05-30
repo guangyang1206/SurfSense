@@ -832,6 +832,10 @@ class Config:
     TTS_SERVICE = os.getenv("TTS_SERVICE")
     TTS_SERVICE_API_BASE = os.getenv("TTS_SERVICE_API_BASE")
     TTS_SERVICE_API_KEY = os.getenv("TTS_SERVICE_API_KEY")
+    
+    # Kokoro TTS Configuration (for local/kokoro)
+    KOKORO_LANG_CODE = os.getenv("KOKORO_LANG_CODE", "a")  # Default: American English
+    KOKORO_DEFAULT_VOICE = os.getenv("KOKORO_DEFAULT_VOICE", "")  # Default: empty (use Kokoro default)
 
     # STT Configuration
     STT_SERVICE = os.getenv("STT_SERVICE")
