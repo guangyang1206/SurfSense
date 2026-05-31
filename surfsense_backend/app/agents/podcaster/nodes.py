@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -64,11 +65,24 @@ async def create_podcast_transcript(
         print(f"Direct JSON parsing failed, trying fallback approach: {e!s}")
 
         try:
+            # Improved fallback: handle invalid escapes in multilingual text
             json_start = content.find("{")
             json_end = content.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 json_str = content[json_start:json_end]
-                parsed_data = json.loads(json_str)
+                
+                # Fix common invalid escapes in multilingual JSON
+                # Replace invalid \' with ' (common in Chinese/Asian text)
+                json_str = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
+                
+                try:
+                    parsed_data = json.loads(json_str)
+                except json.JSONDecodeError:
+                    # If still fails, try with strict=False equivalent
+                    # Python 3.9+ json.loads doesn't have strict parameter
+                    # So we manually fix common issues
+                    parsed_data = json.loads(json_str.replace('\\n', '\n').replace('\\t', '\t'))
+                
                 podcast_transcript = PodcastTranscripts.model_validate(parsed_data)
                 print("Successfully parsed podcast transcript using fallback approach")
             else:
@@ -128,8 +142,8 @@ async def create_merged_podcast_audio(
             speaker_id = segment.get("speaker_id", 0)
             dialog = segment.get("dialog", "")
 
-        # Select voice based on speaker_id
-        voice = get_voice_for_provider(app_config.TTS_SERVICE, speaker_id)
+        # Select voice based on speaker_id and detect language from text
+        voice = get_voice_for_provider(app_config.TTS_SERVICE, speaker_id, dialog)
 
         # Generate a unique filename for this segment
         if app_config.TTS_SERVICE == "local/kokoro":
@@ -141,10 +155,25 @@ async def create_merged_podcast_audio(
 
         try:
             if app_config.TTS_SERVICE == "local/kokoro":
-                # Use Kokoro TTS service
+                # Detect language from text for multilingual support
+                lang_code = "a"  # Default to American English
+                
+                # Simple language detection based on Unicode ranges
+                has_chinese = any('\u4e00' <= char <= '\u9fff' for char in dialog)
+                has_japanese = any('\u3040' <= char <= '\u309f' or '\u30a0' <= char <= '\u30ff' for char in dialog)
+                has_korean = any('\uac00' <= char <= '\ud7af' for char in dialog)
+                
+                if has_chinese:
+                    lang_code = "z"  # Chinese
+                elif has_japanese:
+                    lang_code = "j"  # Japanese
+                elif has_korean:
+                    lang_code = "k"  # Korean
+                
+                # Use Kokoro TTS service with correct lang_code
                 kokoro_service = await get_kokoro_tts_service(
-                    lang_code="a"
-                )  # American English
+                    lang_code=lang_code
+                )
                 audio_path = await kokoro_service.generate_speech(
                     text=dialog, voice=voice, speed=1.0, output_path=filename
                 )
